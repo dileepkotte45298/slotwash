@@ -1,0 +1,37 @@
+# bitbucket-pipelines.yml
+image: maven:3.9-eclipse-temurin-21
+
+options:
+  docker: true
+  size: 2x
+
+pipelines:
+  default:
+    - step:
+        name: Build and Test
+        caches:
+          - maven
+        script:
+          - mvn clean install -DskipTests=false
+
+    - step:
+        name: Docker Buildx & Push to Docker Hub
+        services:
+          - docker
+        script:
+          # ----- Setup Buildx -----
+          - export DOCKER_BUILDKIT=1
+          - mkdir -p ~/.docker/cli-plugins
+          - curl -sSL https://github.com/docker/buildx/releases/download/v0.14.0/buildx-v0.14.0.linux-amd64 \
+                -o ~/.docker/cli-plugins/docker-buildx
+          - chmod +x ~/.docker/cli-plugins/docker-buildx
+          - docker buildx create --use --name bitbucket_builder
+
+          # ----- Docker Login -----
+          - echo "$DOCKER_HUB_PASSWORD" | docker login -u "$DOCKER_HUB_USERNAME" --password-stdin
+
+          # ----- Build & Push -----
+          - docker buildx build \
+              --platform linux/amd64 \
+              --tag protechtechnologies/slotwash:tagname \
+              --push .
